@@ -1,0 +1,134 @@
+﻿-- 智能排产计划Agent - 数据库初始化脚本
+-- 基于plan.md中的表结构设计
+
+-- 创建订单相关表
+CREATE TABLE IF NOT EXISTS sales_order (
+    order_id VARCHAR(32) PRIMARY KEY COMMENT '订单ID',
+    customer_id VARCHAR(32) NOT NULL COMMENT '客户ID',
+    order_date DATE NOT NULL COMMENT '下单日期',
+    required_date DATE NOT NULL COMMENT '要求交期（订单级）',
+    priority TINYINT DEFAULT 2 COMMENT '优先级(1-紧急 2-正常 3-低)',
+    status VARCHAR(20) DEFAULT 'pending' COMMENT '状态(pending/confirmed/in_progress/completed)',
+    total_amount DECIMAL(15,2) COMMENT '订单金额',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS sales_order_item (
+    item_id VARCHAR(32) PRIMARY KEY COMMENT '明细ID',
+    order_id VARCHAR(32) NOT NULL COMMENT '订单ID',
+    product_id VARCHAR(32) NOT NULL COMMENT '产品ID',
+    quantity DECIMAL(12,2) NOT NULL COMMENT '需求数量',
+    unit_price DECIMAL(12,2) COMMENT '单价',
+    due_date DATE COMMENT '明细交期（优先于订单交期）',
+    FOREIGN KEY (order_id) REFERENCES sales_order(order_id)
+);
+
+-- 创建物料相关表
+CREATE TABLE IF NOT EXISTS material (
+    material_id VARCHAR(32) PRIMARY KEY COMMENT '物料ID',
+    material_name VARCHAR(100) NOT NULL COMMENT '物料名称',
+    material_type VARCHAR(20) COMMENT '类型(raw/semi/finished)',
+    unit VARCHAR(10) COMMENT '单位',
+    safety_stock DECIMAL(12,2) DEFAULT 0 COMMENT '安全库存',
+    lead_time_days INT DEFAULT 0 COMMENT '采购提前期(天)',
+    supplier_id VARCHAR(32) COMMENT '默认供应商'
+);
+
+CREATE TABLE IF NOT EXISTS inventory (
+    inventory_id VARCHAR(32) PRIMARY KEY,
+    material_id VARCHAR(32) NOT NULL,
+    warehouse_id VARCHAR(32) COMMENT '仓库ID',
+    quantity_on_hand DECIMAL(12,2) DEFAULT 0 COMMENT '在库数量',
+    quantity_reserved DECIMAL(12,2) DEFAULT 0 COMMENT '已预留数量',
+    quantity_on_order DECIMAL(12,2) DEFAULT 0 COMMENT '在途数量',
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (material_id) REFERENCES material(material_id)
+);
+
+CREATE TABLE IF NOT EXISTS bill_of_material (
+    bom_id VARCHAR(32) PRIMARY KEY,
+    product_id VARCHAR(32) NOT NULL COMMENT '产品ID',
+    material_id VARCHAR(32) NOT NULL COMMENT '物料ID',
+    quantity_required DECIMAL(12,4) NOT NULL COMMENT '单位用量',
+    FOREIGN KEY (material_id) REFERENCES material(material_id)
+);
+
+-- 创建产能相关表
+CREATE TABLE IF NOT EXISTS work_center (
+    center_id VARCHAR(32) PRIMARY KEY COMMENT '工作中心ID',
+    center_name VARCHAR(100) NOT NULL,
+    capacity_per_day DECIMAL(10,2) COMMENT '日产能',
+    efficiency_rate DECIMAL(5,2) DEFAULT 1.0 COMMENT '效率系数',
+    status VARCHAR(20) DEFAULT 'active' COMMENT '状态(active/inactive/maintenance)'
+);
+
+CREATE TABLE IF NOT EXISTS capacity_calendar (
+    calendar_id VARCHAR(32) PRIMARY KEY,
+    center_id VARCHAR(32) NOT NULL,
+    work_date DATE NOT NULL,
+    available_hours DECIMAL(5,2) COMMENT '可用工时',
+    planned_hours DECIMAL(5,2) DEFAULT 0 COMMENT '计划工时',
+    actual_hours DECIMAL(5,2) DEFAULT 0 COMMENT '实际工时',
+    FOREIGN KEY (center_id) REFERENCES work_center(center_id),
+    UNIQUE(center_id, work_date)
+);
+
+-- 创建排产计划相关表
+CREATE TABLE IF NOT EXISTS production_plan (
+    plan_id VARCHAR(32) PRIMARY KEY COMMENT '计划ID',
+    plan_name VARCHAR(100) COMMENT '计划名称',
+    plan_date DATE NOT NULL COMMENT '计划日期',
+    horizon_start DATE COMMENT '排产开始日期',
+    horizon_end DATE COMMENT '排产结束日期',
+    status VARCHAR(20) DEFAULT 'draft' COMMENT '状态(draft/confirmed/ executing/completed)',
+    created_by VARCHAR(32) COMMENT '创建人',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS production_task (
+    task_id VARCHAR(32) PRIMARY KEY COMMENT '任务ID',
+    plan_id VARCHAR(32) NOT NULL COMMENT '所属计划',
+    plan_version INT DEFAULT 1 COMMENT '计划版本',
+    order_id VARCHAR(32) COMMENT '关联订单',
+    item_id VARCHAR(32) COMMENT '关联订单明细',
+    product_id VARCHAR(32) NOT NULL COMMENT '产品ID',
+    center_id VARCHAR(32) NOT NULL COMMENT '工作中心',
+    quantity DECIMAL(12,2) NOT NULL COMMENT '生产数量',
+    start_time TIMESTAMP NOT NULL COMMENT '开始时间',
+    end_time TIMESTAMP NOT NULL COMMENT '结束时间',
+    status VARCHAR(20) DEFAULT 'planned' COMMENT '状态(planned/scheduled/in_progress/completed)',
+    priority TINYINT DEFAULT 2 COMMENT '优先级',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (plan_id) REFERENCES production_plan(plan_id),
+    FOREIGN KEY (order_id) REFERENCES sales_order(order_id),
+    FOREIGN KEY (center_id) REFERENCES work_center(center_id)
+);
+
+-- 添加唯一约束（防完全重复）
+-- 注意：无法防止时间段重叠，这是已知技术债务TD-001
+CREATE UNIQUE INDEX IF NOT EXISTS uk_center_time 
+ON production_task(center_id, start_time, end_time);
+
+-- 创建插单记录表
+CREATE TABLE IF NOT EXISTS insert_order_log (
+    log_id VARCHAR(32) PRIMARY KEY,
+    order_id VARCHAR(32) NOT NULL,
+    original_plan_id VARCHAR(32) COMMENT '原计划ID',
+    new_plan_id VARCHAR(32) COMMENT '新计划ID',
+    affected_tasks JSON COMMENT '受影响的任务',
+    disruption_score DECIMAL(5,2) COMMENT '扰动评分',
+    status VARCHAR(20) DEFAULT 'pending' COMMENT '状态(pending/processing/completed/failed)',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (order_id) REFERENCES sales_order(order_id)
+);
+
+-- 创建索引
+CREATE INDEX IF NOT EXISTS idx_order_status ON sales_order(status);
+CREATE INDEX IF NOT EXISTS idx_order_date ON sales_order(order_date);
+CREATE INDEX IF NOT EXISTS idx_order_priority ON sales_order(priority);
+CREATE INDEX IF NOT EXISTS idx_material_type ON material(material_type);
+CREATE INDEX IF NOT EXISTS idx_task_plan ON production_task(plan_id);
+CREATE INDEX IF NOT EXISTS idx_task_center ON production_task(center_id);
+CREATE INDEX IF NOT EXISTS idx_task_time ON production_task(start_time, end_time);

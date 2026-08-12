@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智能排产计划系统</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"Segoe UI","Microsoft YaHei",sans-serif;background:#f0f2f5;color:#333;min-height:100vh}
+.header{background:linear-gradient(135deg,#1677ff,#4096ff);color:#fff;padding:40px 24px;text-align:center}
+.header h1{font-size:28px;font-weight:600;margin-bottom:8px}
+.header p{font-size:14px;opacity:.9}
+.container{max-width:960px;margin:-30px auto 0;padding:0 24px}
+.stats-bar{display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap}
+.stat-card{background:#fff;border-radius:8px;padding:16px 20px;flex:1;min-width:140px;box-shadow:0 2px 8px rgba(0,0,0,.08);text-align:center}
+.stat-card .num{font-size:28px;font-weight:700;color:#1677ff}
+.stat-card .lbl{font-size:12px;color:#999;margin-top:4px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+.nav-card{background:#fff;border-radius:12px;padding:24px;box-shadow:0 2px 8px rgba(0,0,0,.06);transition:transform .2s,box-shadow .2s;cursor:pointer;text-decoration:none;color:inherit;display:block}
+.nav-card:hover{transform:translateY(-4px);box-shadow:0 8px 24px rgba(0,0,0,.12)}
+.nav-card .icon{font-size:36px;margin-bottom:12px}
+.nav-card h3{font-size:16px;font-weight:600;margin-bottom:6px}
+.nav-card p{font-size:13px;color:#888;line-height:1.5}
+.nav-card .tag{display:inline-block;background:#e6f4ff;color:#1677ff;padding:2px 8px;border-radius:4px;font-size:11px;margin-top:8px}
+.footer{text-align:center;padding:24px;color:#999;font-size:12px}
+</style>
+</head>
+<body>
+<div class="header">
+    <h1>智能排产计划系统</h1>
+    <p>基于 LangGraph + OR-Tools 的约束排产服务</p>
+</div>
+<div class="container">
+    <div class="stats-bar" id="statsBar">
+        <div class="stat-card"><div class="num" id="statPlans">-</div><div class="lbl">排产计划</div></div>
+        <div class="stat-card"><div class="num" id="statTasks">-</div><div class="lbl">生产任务</div></div>
+        <div class="stat-card"><div class="num" id="statCenters">-</div><div class="lbl">工作中心</div></div>
+        <div class="stat-card"><div class="num" id="statAlerts">-</div><div class="lbl">活跃预警</div></div>
+    </div>
+    <div class="grid">
+        <a class="nav-card" href="/gantt"><div class="icon">📊</div><h3>甘特图可视化</h3><p>排产计划甘特图，支持缩放、拖拽、计划对比</p><span class="tag">排产</span></a>
+        <a class="nav-card" href="/capacity"><div class="icon">🏭</div><h3>产能负荷</h3><p>各工作中心产能利用率，负荷率热力图</p><span class="tag">产能</span></a>
+        <a class="nav-card" href="/alerts"><div class="icon">🚨</div><h3>预警中心</h3><p>缺料预警、交付延误预警一览</p><span class="tag">预警</span></a>
+        <a class="nav-card" href="/insert-orders"><div class="icon">📥</div><h3>插单管理</h3><p>插单扰动记录、受影响任务明细</p><span class="tag">插单</span></a>
+        <a class="nav-card" href="/materials"><div class="icon">📦</div><h3>物料库存</h3><p>物料主数据、库存水位、安全库存预警</p><span class="tag">物料</span></a>
+        <a class="nav-card" href="/run-logs"><div class="icon">📝</div><h3>审计日志</h3><p>排产运行记录、策略、求解状态</p><span class="tag">审计</span></a>
+    </div>
+</div>
+<div class="footer">智能排产计划Agent v1.6 | <a href="/docs" style="color:#1677ff;">API文档</a></div>
+<script>
+async function loadStats(){
+    try{
+        const r=await fetch('/api/stats');const d=await r.json();
+        document.getElementById('statPlans').textContent=Object.values(d.plan_status).reduce((a,b)=>a+b,0);
+        document.getElementById('statTasks').textContent=d.table_counts.production_task||0;
+        document.getElementById('statCenters').textContent=d.table_counts.work_center||0;
+        document.getElementById('statAlerts').textContent=d.active_alerts.shortage+d.active_alerts.delivery;
+    }catch(e){console.warn(e)}
+}
+loadStats();
+</script>
+</body>
+</html>

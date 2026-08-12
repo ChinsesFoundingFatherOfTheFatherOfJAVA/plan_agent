@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>物料库存</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:"Segoe UI","Microsoft YaHei",sans-serif;background:#f0f2f5;color:#333}.nav-top{background:#fff;padding:10px 24px;box-shadow:0 2px 8px rgba(0,0,0,.06);display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:100}.nav-top a{color:#1677ff;text-decoration:none;font-size:14px}.nav-top .title{font-size:16px;font-weight:600;margin-right:auto}.content{padding:24px;max-width:1200px;margin:0 auto}.btn{padding:6px 16px;border:1px solid #d9d9d9;border-radius:4px;background:#fff;cursor:pointer;font-size:13px;transition:all .2s}.btn:hover{border-color:#4096ff;color:#4096ff}.btn-primary{background:#1677ff;color:#fff;border-color:#1677ff}.card{background:#fff;border-radius:8px;padding:20px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.06)}.card h3{font-size:14px;color:#666;margin-bottom:12px}table{width:100%;border-collapse:collapse;font-size:13px}th{background:#fafafa;padding:10px 12px;text-align:left;font-weight:600;color:#666;border-bottom:2px solid #e8e8e8}td{padding:8px 12px;border-bottom:1px solid #f0f0f0}tr:hover td{background:#f5f5f5}.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500}.badge-high{background:#fff2f0;color:#ff4d4f}.badge-medium{background:#fffbe6;color:#faad14}.badge-low{background:#f6ffed;color:#52c41a}.badge-active{background:#e6f4ff;color:#1677ff}.badge-resolved{background:#f5f5f5;color:#999}.badge-draft{background:#fffbe6;color:#faad14}.badge-confirmed{background:#f6ffed;color:#52c41a}.empty{text-align:center;padding:60px;color:#999}.empty .icon{font-size:48px;margin-bottom:12px}.loading{display:none;text-align:center;padding:40px;color:#999}.bar-container{width:100px;height:8px;background:#f0f0f0;border-radius:4px;overflow:hidden;display:inline-block;vertical-align:middle}.bar-fill{height:100%;border-radius:4px;transition:width .3s}</style>
+</head>
+<body>
+<div class="nav-top"><a href="/">← 首页</a><span class="title">📦 物料库存</span><button class="btn btn-primary" onclick="loadData()">刷新</button></div>
+<div class="content">
+    <div class="card"><h3>物料库存概览</h3><div id="tableDiv"><div class="empty"><div class="icon">📊</div><div>加载中...</div></div></div></div>
+</div>
+<script>
+async function loadData(){
+    try{
+        const r=await fetch('/api/materials');const d=await r.json();
+        if(!d.count){document.getElementById('tableDiv').innerHTML='<div class="empty"><div class="icon">📦</div><div>无物料数据</div></div>';return}
+        let t='<table><thead><tr><th>物料ID</th><th>名称</th><th>类型</th><th>在库</th><th>已预留</th><th>可用</th><th>在途</th><th>安全库存</th><th>状态</th></tr></thead><tbody>';
+        d.items.forEach(i=>{
+            const avail=i.available_quantity;const safety=i.safety_stock;const below=i.below_safety;
+            const st=below?'<span class="badge badge-high">低于安全库存</span>':'<span class="badge badge-low">正常</span>';
+            t+='<tr><td>'+i.material_id+'</td><td>'+i.material_name+'</td><td><span class="badge badge-active">'+i.material_type+'</span></td><td>'+i.quantity_on_hand+'</td><td>'+i.quantity_reserved+'</td><td style="font-weight:600;color:'+(below?'#ff4d4f':'#333')+';">'+avail.toFixed(1)+'</td><td>'+i.quantity_on_order+'</td><td>'+safety+'</td><td>'+st+'</td></tr>'});
+        t+='</tbody></table>';
+        document.getElementById('tableDiv').innerHTML=t;
+    }catch(e){document.getElementById('tableDiv').innerHTML='<div class="empty"><div>加载失败: '+e.message+'</div></div>'}
+}
+loadData();
+</script>
+</body></html>

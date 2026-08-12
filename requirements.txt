@@ -1,0 +1,50 @@
+# 智能排产计划Agent - Python依赖
+# 核心框架
+langgraph>=0.2.0
+langchain-core>=0.3.0
+langchain-community>=0.3.0
+langchain-openai>=0.3.0
+
+# LLM相关
+openai>=1.50.0
+dashscope>=1.20.0
+
+# 数据库
+psycopg2-binary>=2.9.9
+redis>=5.0.0
+celery>=5.4.0
+
+# 向量数据库
+pymilvus>=2.4.0
+
+# 约束求解
+ortools>=9.10.0
+
+# 数据处理
+pandas>=2.2.0
+scikit-learn>=1.5
+jieba>=0.42
+openpyxl>=3.1.0
+
+# Web API
+fastapi>=0.115.0
+uvicorn>=0.32.0
+
+# DingTalk
+dingtalk-stream>=0.24.0
+
+# 工具库
+python-dotenv>=1.0.0
+pydantic>=2.8.0
+pydantic-settings>=2.4.0
+httpx>=0.27.0
+aiohttp>=3.10.0
+
+# 日志和监控
+loguru>=0.7.0
+
+# 开发工具
+pytest>=8.3.0
+pytest-asyncio>=0.24.0
+black>=24.8.0
+isort>=5.13.0

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>审计日志</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:"Segoe UI","Microsoft YaHei",sans-serif;background:#f0f2f5;color:#333}.nav-top{background:#fff;padding:10px 24px;box-shadow:0 2px 8px rgba(0,0,0,.06);display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:100}.nav-top a{color:#1677ff;text-decoration:none;font-size:14px}.nav-top .title{font-size:16px;font-weight:600;margin-right:auto}.content{padding:24px;max-width:1200px;margin:0 auto}.btn{padding:6px 16px;border:1px solid #d9d9d9;border-radius:4px;background:#fff;cursor:pointer;font-size:13px;transition:all .2s}.btn:hover{border-color:#4096ff;color:#4096ff}.btn-primary{background:#1677ff;color:#fff;border-color:#1677ff}.card{background:#fff;border-radius:8px;padding:20px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.06)}.card h3{font-size:14px;color:#666;margin-bottom:12px}table{width:100%;border-collapse:collapse;font-size:13px}th{background:#fafafa;padding:10px 12px;text-align:left;font-weight:600;color:#666;border-bottom:2px solid #e8e8e8}td{padding:8px 12px;border-bottom:1px solid #f0f0f0}tr:hover td{background:#f5f5f5}.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500}.badge-high{background:#fff2f0;color:#ff4d4f}.badge-medium{background:#fffbe6;color:#faad14}.badge-low{background:#f6ffed;color:#52c41a}.badge-active{background:#e6f4ff;color:#1677ff}.badge-resolved{background:#f5f5f5;color:#999}.badge-draft{background:#fffbe6;color:#faad14}.badge-confirmed{background:#f6ffed;color:#52c41a}.empty{text-align:center;padding:60px;color:#999}.empty .icon{font-size:48px;margin-bottom:12px}.loading{display:none;text-align:center;padding:40px;color:#999}.bar-container{width:100px;height:8px;background:#f0f0f0;border-radius:4px;overflow:hidden;display:inline-block;vertical-align:middle}.bar-fill{height:100%;border-radius:4px;transition:width .3s}</style>
+</head>
+<body>
+<div class="nav-top"><a href="/">← 首页</a><span class="title">📝 审计日志</span><button class="btn btn-primary" onclick="loadData()">刷新</button></div>
+<div class="content">
+    <div class="card"><h3>排产运行记录</h3><div id="tableDiv"><div class="empty"><div class="icon">📊</div><div>加载中...</div></div></div></div>
+</div>
+<script>
+async function loadData(){
+    try{
+        const r=await fetch('/api/run-logs');const d=await r.json();
+        if(!d.count){document.getElementById('tableDiv').innerHTML='<div class="empty"><div class="icon">📝</div><div>暂无运行记录</div></div>';return}
+        let t='<table><thead><tr><th>运行ID</th><th>计划ID</th><th>类型</th><th>策略</th><th>求解状态</th><th>总任务</th><th>已排</th><th>未排</th><th>超期</th><th>耗时</th><th>冲突</th><th>验证</th><th>时间</th></tr></thead><tbody>';
+        d.items.forEach(i=>{
+            const ss=i.solver_status==='OPTIMAL'?'<span class="badge badge-low">OPTIMAL</span>':'<span class="badge badge-medium">'+i.solver_status+'</span>';
+            const vp=i.validation_passed?'<span class="badge badge-low">通过</span>':'<span class="badge badge-high">失败</span>';
+            t+='<tr><td>'+i.run_id+'</td><td>'+(i.plan_id||'-')+'</td><td>'+i.request_type+'</td><td>'+(i.strategy||'-')+'</td><td>'+ss+'</td><td>'+i.tasks_total+'</td><td>'+i.tasks_scheduled+'</td><td>'+(i.tasks_unscheduled||0)+'</td><td>'+(i.tardy_tasks||0)+'</td><td>'+parseFloat(i.solve_seconds||0).toFixed(3)+'s</td><td>'+(i.conflicts_count||0)+'</td><td>'+vp+'</td><td>'+(i.created_at||'').slice(0,19)+'</td></tr>'});
+        t+='</tbody></table>';
+        document.getElementById('tableDiv').innerHTML=t;
+    }catch(e){document.getElementById('tableDiv').innerHTML='<div class="empty"><div>加载失败: '+e.message+'</div></div>'}
+}
+loadData();
+</script>
+</body></html>

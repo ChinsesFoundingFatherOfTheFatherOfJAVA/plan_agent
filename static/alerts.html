@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>预警中心</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:"Segoe UI","Microsoft YaHei",sans-serif;background:#f0f2f5;color:#333}.nav-top{background:#fff;padding:10px 24px;box-shadow:0 2px 8px rgba(0,0,0,.06);display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:100}.nav-top a{color:#1677ff;text-decoration:none;font-size:14px}.nav-top .title{font-size:16px;font-weight:600;margin-right:auto}.content{padding:24px;max-width:1200px;margin:0 auto}.btn{padding:6px 16px;border:1px solid #d9d9d9;border-radius:4px;background:#fff;cursor:pointer;font-size:13px;transition:all .2s}.btn:hover{border-color:#4096ff;color:#4096ff}.btn-primary{background:#1677ff;color:#fff;border-color:#1677ff}.card{background:#fff;border-radius:8px;padding:20px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.06)}.card h3{font-size:14px;color:#666;margin-bottom:12px}table{width:100%;border-collapse:collapse;font-size:13px}th{background:#fafafa;padding:10px 12px;text-align:left;font-weight:600;color:#666;border-bottom:2px solid #e8e8e8}td{padding:8px 12px;border-bottom:1px solid #f0f0f0}tr:hover td{background:#f5f5f5}.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500}.badge-high{background:#fff2f0;color:#ff4d4f}.badge-medium{background:#fffbe6;color:#faad14}.badge-low{background:#f6ffed;color:#52c41a}.badge-active{background:#e6f4ff;color:#1677ff}.badge-resolved{background:#f5f5f5;color:#999}.badge-draft{background:#fffbe6;color:#faad14}.badge-confirmed{background:#f6ffed;color:#52c41a}.empty{text-align:center;padding:60px;color:#999}.empty .icon{font-size:48px;margin-bottom:12px}.loading{display:none;text-align:center;padding:40px;color:#999}.bar-container{width:100px;height:8px;background:#f0f0f0;border-radius:4px;overflow:hidden;display:inline-block;vertical-align:middle}.bar-fill{height:100%;border-radius:4px;transition:width .3s}.tabs{display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid #e8e8e8}.tab{padding:10px 24px;cursor:pointer;font-size:14px;color:#666;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .2s}.tab.active{color:#1677ff;border-bottom-color:#1677ff;font-weight:600}.tab:hover{color:#4096ff}</style>
+</head>
+<body>
+<div class="nav-top"><a href="/">← 首页</a><span class="title">🚨 预警中心</span><button class="btn btn-primary" onclick="loadData()">刷新</button><button class="btn" onclick="checkShortage()">缺料检查</button><button class="btn" onclick="checkDelivery()">交付检查</button></div>
+<div class="content">
+    <div class="tabs"><div class="tab active" onclick="switchTab('shortage')">缺料预警 (<span id="shortageCount">0</span>)</div><div class="tab" onclick="switchTab('delivery')">交付延误 (<span id="deliveryCount">0</span>)</div></div>
+    <div id="shortagePanel"><div class="card"><div id="shortageTable"><div class="empty"><div class="icon">📊</div><div>加载中...</div></div></div></div></div>
+    <div id="deliveryPanel" style="display:none;"><div class="card"><div id="deliveryTable"><div class="empty"><div class="icon">📊</div><div>加载中...</div></div></div></div></div>
+</div>
+<script>
+let currentTab='shortage';
+function switchTab(t){currentTab=t;document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));event.target.classList.add('active');document.getElementById('shortagePanel').style.display=t==='shortage'?'':'none';document.getElementById('deliveryPanel').style.display=t==='delivery'?'':'none'}
+async function loadData(){await Promise.all([loadShortage(),loadDelivery()])}
+async function loadShortage(){
+    try{const r=await fetch('/api/alerts/shortage');const d=await r.json();document.getElementById('shortageCount').textContent=d.count;
+        if(!d.count){document.getElementById('shortageTable').innerHTML='<div class="empty"><div class="icon">✅</div><div>无缺料预警</div></div>';return}
+        let t='<table><thead><tr><th>预警ID</th><th>物料</th><th>需求日期</th><th>需求数量</th><th>可用数量</th><th>缺口</th><th>风险等级</th><th>状态</th></tr></thead><tbody>';
+        d.items.forEach(i=>{t+='<tr><td>'+i.alert_id+'</td><td>'+i.material_id+'</td><td>'+i.required_date+'</td><td>'+i.required_quantity+'</td><td>'+i.available_quantity+'</td><td style="color:#ff4d4f;font-weight:600;">'+i.shortage_quantity+'</td><td><span class="badge badge-'+i.risk_level+'">'+i.risk_level+'</span></td><td><span class="badge badge-'+i.status+'">'+i.status+'</span></td></tr>'});
+        t+='</tbody></table>';document.getElementById('shortageTable').innerHTML=t;
+    }catch(e){document.getElementById('shortageTable').innerHTML='<div class="empty"><div>加载失败: '+e.message+'</div></div>'}
+}
+async function loadDelivery(){
+    try{const r=await fetch('/api/alerts/delivery');const d=await r.json();document.getElementById('deliveryCount').textContent=d.count;
+        if(!d.count){document.getElementById('deliveryTable').innerHTML='<div class="empty"><div class="icon">✅</div><div>无交付延误预警</div></div>';return}
+        let t='<table><thead><tr><th>预警ID</th><th>订单</th><th>明细</th><th>要求交期</th><th>预计交期</th><th>延误天数</th><th>类型</th><th>状态</th></tr></thead><tbody>';
+        d.items.forEach(i=>{t+='<tr><td>'+i.alert_id+'</td><td>'+i.order_id+'</td><td>'+(i.item_id||'-')+'</td><td>'+i.required_date+'</td><td>'+i.expected_date+'</td><td style="color:#ff4d4f;font-weight:600;">'+i.delay_days+'天</td><td><span class="badge badge-'+i.alert_type+'">'+i.alert_type+'</span></td><td><span class="badge badge-'+i.status+'">'+i.status+'</span></td></tr>'});
+        t+='</tbody></table>';document.getElementById('deliveryTable').innerHTML=t;
+    }catch(e){document.getElementById('deliveryTable').innerHTML='<div class="empty"><div>加载失败: '+e.message+'</div></div>'}
+}
+async function checkShortage(){try{await fetch('/api/shortage/check?sync=true',{method:'POST'});alert('缺料检查完成');await loadData()}catch(e){alert('检查失败: '+e)}}
+async function checkDelivery(){try{await fetch('/api/delivery/check?sync=true',{method:'POST'});alert('交付检查完成');await loadData()}catch(e){alert('检查失败: '+e)}}
+loadData();
+</script>
+</body></html>

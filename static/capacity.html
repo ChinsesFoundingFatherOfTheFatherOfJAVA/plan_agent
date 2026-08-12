@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>产能负荷</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:"Segoe UI","Microsoft YaHei",sans-serif;background:#f0f2f5;color:#333}.nav-top{background:#fff;padding:10px 24px;box-shadow:0 2px 8px rgba(0,0,0,.06);display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:100}.nav-top a{color:#1677ff;text-decoration:none;font-size:14px}.nav-top .title{font-size:16px;font-weight:600;margin-right:auto}.content{padding:24px;max-width:1200px;margin:0 auto}.btn{padding:6px 16px;border:1px solid #d9d9d9;border-radius:4px;background:#fff;cursor:pointer;font-size:13px;transition:all .2s}.btn:hover{border-color:#4096ff;color:#4096ff}.btn-primary{background:#1677ff;color:#fff;border-color:#1677ff}.card{background:#fff;border-radius:8px;padding:20px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.06)}.card h3{font-size:14px;color:#666;margin-bottom:12px}table{width:100%;border-collapse:collapse;font-size:13px}th{background:#fafafa;padding:10px 12px;text-align:left;font-weight:600;color:#666;border-bottom:2px solid #e8e8e8}td{padding:8px 12px;border-bottom:1px solid #f0f0f0}tr:hover td{background:#f5f5f5}.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500}.badge-high{background:#fff2f0;color:#ff4d4f}.badge-medium{background:#fffbe6;color:#faad14}.badge-low{background:#f6ffed;color:#52c41a}.badge-active{background:#e6f4ff;color:#1677ff}.badge-resolved{background:#f5f5f5;color:#999}.badge-draft{background:#fffbe6;color:#faad14}.badge-confirmed{background:#f6ffed;color:#52c41a}.empty{text-align:center;padding:60px;color:#999}.empty .icon{font-size:48px;margin-bottom:12px}.loading{display:none;text-align:center;padding:40px;color:#999}.bar-container{width:100px;height:8px;background:#f0f0f0;border-radius:4px;overflow:hidden;display:inline-block;vertical-align:middle}.bar-fill{height:100%;border-radius:4px;transition:width .3s}.heat-cell{width:40px;height:32px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;border-radius:2px;margin:1px}.heat-0{background:#f6ffed;color:#52c41a}.heat-1{background:#d9f7be}.heat-2{background:#bae637}.heat-3{background:#a0d911}.heat-4{background:#73d13d;color:#fff}.heat-5{background:#52c41a;color:#fff}.heat-6{background:#389e0d;color:#fff}.heat-7{background:#237804;color:#fff}.heat-8{background:#135200;color:#fff}.heat-9{background:#faad14;color:#fff}.heat-10{background:#fa8c16;color:#fff}.heat-over{background:#ff4d4f;color:#fff}.legend-bar{display:flex;gap:2px;margin:8px 0}.legend-bar .heat-cell{width:30px}</style>
+</head>
+<body>
+<div class="nav-top"><a href="/">← 首页</a><span class="title">🏭 产能负荷</span><button class="btn btn-primary" onclick="loadData()">刷新</button></div>
+<div class="content">
+    <div class="card"><h3>负荷率热力图（按工作中心 × 日期）</h3><div class="legend-bar"><span class="heat-cell heat-0">0%</span><span class="heat-cell heat-5">50%</span><span class="heat-cell heat-10">100%</span><span class="heat-cell heat-over">超</span></div><div id="heatmap"></div></div>
+    <div class="card"><h3>明细表</h3><div id="tableDiv"><div class="empty"><div class="icon">📊</div><div>加载中...</div></div></div></div>
+</div>
+<script>
+async function loadData(){
+    const[wcRes,capRes]=await Promise.all([fetch('/api/work-centers'),fetch('/api/capacity/load')]);
+    const wcs=(await wcRes.json()).work_centers||[];
+    const caps=(await capRes.json()).items||[];
+    if(!caps.length){document.getElementById('heatmap').innerHTML='<div class="empty"><div class="icon">📊</div><div>无产能数据</div></div>';document.getElementById('tableDiv').innerHTML='<div class="empty"><div class="icon">📊</div><div>无产能数据</div></div>';return}
+    // Group by center
+    const byCenter={};caps.forEach(c=>{(byCenter[c.center_id]=byCenter[c.center_id]||[]).push(c)});
+    // Get all dates
+    const dates=[...new Set(caps.map(c=>c.work_date))].sort();
+    // Heatmap
+    let h='<table><thead><tr><th>工作中心</th>';dates.forEach(d=>{const dt=new Date(d);h+='<th style="text-align:center;font-size:10px;">'+(dt.getMonth()+1)+'/'+dt.getDate()+'</th>'});h+='</tr></thead><tbody>';
+    wcs.forEach(wc=>{const cn=wc.center_name||wc.center_id;const dc=wc.status==='maintenance'?'#ff4d4f':'#52c41a';h+='<tr><td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+dc+';margin-right:6px;"></span>'+cn+'</td>';dates.forEach(d=>{const item=(byCenter[wc.center_id]||[]).find(c=>c.work_date===d);if(item){const lr=item.load_rate;let cls='heat-0';if(lr>100)cls='heat-over';else if(lr>=90)cls='heat-10';else if(lr>=80)cls='heat-9';else if(lr>=70)cls='heat-7';else if(lr>=60)cls='heat-6';else if(lr>=50)cls='heat-5';else if(lr>=40)cls='heat-4';else if(lr>=30)cls='heat-3';else if(lr>=20)cls='heat-2';else if(lr>=10)cls='heat-1';h+='<td><span class="heat-cell '+cls+'" title="'+d+' 负荷率:'+lr+'%">'+(lr>0?Math.round(lr):'')+'</span></td>'}else{h+='<td></td>'}});h+='</tr>'});
+    h+='</tbody></table>';
+    document.getElementById('heatmap').innerHTML=h;
+    // Detail table
+    let t='<table><thead><tr><th>工作中心</th><th>日期</th><th>可用工时</th><th>已排工时</th><th>负荷率</th><th>状态</th></tr></thead><tbody>';
+    caps.filter(c=>c.planned_hours>0).forEach(c=>{const lr=c.load_rate;const bc=lr>100?'#ff4d4f':lr>=80?'#faad14':'#52c41a';t+='<tr><td>'+c.center_id+'</td><td>'+c.work_date+'</td><td>'+c.available_hours.toFixed(1)+'h</td><td>'+c.planned_hours.toFixed(1)+'h</td><td><div class="bar-container"><div class="bar-fill" style="width:'+Math.min(lr,100)+'%;background:'+bc+';"></div></div> '+lr+'%</td><td>'+(lr>100?'<span class="badge badge-high">超载</span>':lr>=80?'<span class="badge badge-medium">高负荷</span>':'<span class="badge badge-low">正常</span>')+'</td></tr>'});
+    t+='</tbody></table>';
+    document.getElementById('tableDiv').innerHTML=t;
+}
+loadData();
+</script>
+</body></html>

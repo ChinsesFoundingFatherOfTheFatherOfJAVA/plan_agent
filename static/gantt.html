@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>排产计划甘特图</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"Segoe UI","Microsoft YaHei",sans-serif;background:#f0f2f5;color:#333}
+.toolbar{background:#fff;padding:12px 24px;box-shadow:0 2px 8px rgba(0,0,0,.06);display:flex;align-items:center;gap:16px;flex-wrap:wrap;position:sticky;top:0;z-index:100}
+.toolbar h1{font-size:18px;font-weight:600;white-space:nowrap}
+.toolbar .info{font-size:13px;color:#888}
+.btn{padding:6px 16px;border:1px solid #d9d9d9;border-radius:4px;background:#fff;cursor:pointer;font-size:13px;transition:all .2s}
+.btn:hover{border-color:#4096ff;color:#4096ff}
+.btn-primary{background:#1677ff;color:#fff;border-color:#1677ff}
+.btn-primary:hover{background:#4096ff;color:#fff}
+.btn-danger{background:#ff4d4f;color:#fff;border-color:#ff4d4f}
+.btn-danger:hover{background:#ff7875}
+.btn-sm{padding:3px 10px;font-size:12px}
+select{padding:4px 8px;border:1px solid #d9d9d9;border-radius:4px;font-size:13px;background:#fff}
+.cards{display:flex;gap:12px;padding:16px 24px;flex-wrap:wrap}
+.card{background:#fff;border-radius:8px;padding:16px 20px;min-width:160px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.card .label{font-size:12px;color:#999;margin-bottom:4px}
+.card .value{font-size:24px;font-weight:600}
+.card .sub{font-size:11px;color:#bbb;margin-top:2px}
+.card.ok .value{color:#52c41a}
+.gantt-container{background:#fff;margin:0 24px 24px;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.06);overflow:hidden}
+.gantt-header{display:flex;background:#fafafa;border-bottom:1px solid #e8e8e8;font-size:12px;color:#666}
+.gantt-header .corner{width:160px;min-width:160px;padding:8px;border-right:1px solid #e8e8e8}
+.gantt-header .timeline-wrap{flex:1;overflow:hidden;position:relative}
+.gantt-body{display:flex}
+.gantt-sidebar{width:160px;min-width:160px;border-right:1px solid #e8e8e8}
+.gantt-sidebar .center-row{height:56px;display:flex;align-items:center;padding:0 12px;border-bottom:1px solid #f0f0f0;font-size:13px;font-weight:500}
+.gantt-sidebar .center-row .dot{width:8px;height:8px;border-radius:50%;margin-right:8px}
+.gantt-chart{flex:1;overflow-x:auto;position:relative;cursor:grab}
+.gantt-chart.dragging{cursor:grabbing}
+.timeline-header{display:flex;height:28px;border-bottom:1px solid #e8e8e8}
+.timeline-header .day-cell{flex-shrink:0;border-right:1px solid #f0f0f0;display:flex;align-items:center;justify-content:center;font-size:11px;color:#999}
+.timeline-header .day-cell.weekend{background:#fafafa;color:#ccc}
+.timeline-header .day-cell.today{background:#e6f4ff;color:#1677ff;font-weight:600}
+.task-rows{position:relative}
+.task-row{height:56px;border-bottom:1px solid #f0f0f0;position:relative}
+.task-bar{position:absolute;height:36px;top:10px;border-radius:4px;display:flex;align-items:center;padding:0 8px;font-size:11px;color:#fff;cursor:pointer;overflow:hidden;white-space:nowrap;transition:box-shadow .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.task-bar:hover{box-shadow:0 4px 12px rgba(0,0,0,.2);z-index:10}
+.task-bar .label{font-weight:500;text-shadow:0 1px 2px rgba(0,0,0,.3)}
+.task-bar .setup-badge{background:rgba(255,255,255,.25);border-radius:3px;padding:1px 4px;font-size:10px;margin-left:4px}
+.task-bar.prod-PROD-001{background:linear-gradient(135deg,#1677ff,#4096ff)}
+.task-bar.prod-PROD-002{background:linear-gradient(135deg,#52c41a,#73d13d)}
+.task-bar.prod-PROD-003{background:linear-gradient(135deg,#faad14,#ffc53d)}
+.task-bar.prod-default{background:linear-gradient(135deg,#722ed1,#9254de)}
+.due-marker{position:absolute;top:0;bottom:0;width:2px;background:#ff4d4f;z-index:5}
+.due-marker::after{content:'';position:absolute;top:2px;left:-4px;border:5px solid transparent;border-top-color:#ff4d4f;border-bottom:0}
+.now-line{position:absolute;top:0;bottom:0;width:2px;background:#1677ff;z-index:6;opacity:.6}
+.now-line::before{content:'NOW';position:absolute;top:2px;left:4px;font-size:9px;color:#1677ff;font-weight:600}
+.tooltip{position:fixed;background:rgba(0,0,0,.85);color:#fff;padding:10px 14px;border-radius:6px;font-size:12px;line-height:1.8;z-index:1000;pointer-events:none;max-width:360px;display:none;box-shadow:0 4px 12px rgba(0,0,0,.3)}
+.tooltip .tt-title{font-weight:600;font-size:13px;margin-bottom:4px}
+.tooltip .tt-row{display:flex;gap:8px}
+.tooltip .tt-label{color:#aaa;min-width:60px}
+.empty-state{text-align:center;padding:80px 24px;color:#999}
+.empty-state .icon{font-size:48px;margin-bottom:16px}
+.empty-state .msg{font-size:16px;margin-bottom:8px}
+.empty-state .hint{font-size:13px}
+.loading-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,.7);display:flex;align-items:center;justify-content:center;z-index:2000;display:none}
+.loading-overlay .spinner{width:40px;height:40px;border:3px solid #e8e8e8;border-top-color:#1677ff;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.legend{display:flex;gap:12px;padding:8px 24px;font-size:12px;color:#666;align-items:center}
+.legend-item{display:flex;align-items:center;gap:4px}
+.legend-item .swatch{width:12px;height:12px;border-radius:2px}
+</style>
+</head>
+<body>
+<div class="toolbar">
+    <a href="/" style="color:#1677ff;text-decoration:none;font-size:14px;">← 首页</a>
+    <h1>📊 排产计划甘特图</h1>
+    <select id="planSelect" onchange="loadSelectedPlan()" style="min-width:200px;"></select>
+    <button class="btn btn-primary" onclick="loadLatestPlan()">刷新计划</button>
+    <button class="btn" onclick="runScheduling()">生成新计划</button>
+    <button class="btn btn-danger" onclick="deletePlan()" id="btnDelete" style="display:none;">删除草稿</button>
+    <button class="btn btn-sm" onclick="zoomOut()">🔍−</button>
+    <button class="btn btn-sm" onclick="zoomReset()">1:1</button>
+    <button class="btn btn-sm" onclick="zoomIn()">🔍+</button>
+    <span class="info" id="planInfo">尚未加载</span>
+</div>
+<div class="cards" id="cards">
+    <div class="card"><div class="label">计划编号</div><div class="value" id="cardPlanId">-</div><div class="sub" id="cardPlanStatus"></div></div>
+    <div class="card"><div class="label">任务数</div><div class="value" id="cardTasks">-</div><div class="sub" id="cardSegments"></div></div>
+    <div class="card"><div class="label">总工时</div><div class="value" id="cardHours">-</div><div class="sub" id="cardStrategy"></div></div>
+    <div class="card ok"><div class="label">求解状态</div><div class="value" id="cardSolver">-</div><div class="sub" id="cardSolveTime"></div></div>
+</div>
+<div class="legend">
+    <span class="legend-item"><span class="swatch" style="background:#1677ff;"></span>PROD-001</span>
+    <span class="legend-item"><span class="swatch" style="background:#52c41a;"></span>PROD-002</span>
+    <span class="legend-item"><span class="swatch" style="background:#faad14;"></span>PROD-003</span>
+    <span class="legend-item"><span class="swatch" style="background:#ff4d4f;width:2px;height:12px;"></span>交期</span>
+    <span class="legend-item"><span class="swatch" style="background:#1677ff;width:2px;height:12px;"></span>当前时间</span>
+    <span class="legend-item"><span class="swatch" style="background:#fafafa;border:1px solid #e8e8e8;"></span>周末</span>
+</div>
+<div class="gantt-container" id="ganttContainer">
+    <div class="empty-state" id="emptyState"><div class="icon">📋</div><div class="msg">暂无排产计划</div><div class="hint">点击「生成新计划」或「刷新计划」加载排产数据</div></div>
+</div>
+<div class="tooltip" id="tooltip"></div>
+<div class="loading-overlay" id="loading"><div class="spinner"></div></div>
+<script>
+let currentPlan=null,workCenters=[],dayWidth=120,allPlans=[];
+const COLORS={'PROD-001':['#1677ff','#4096ff'],'PROD-002':['#52c41a','#73d13d'],'PROD-003':['#faad14','#ffc53d']};
+const PRI={1:'紧急',2:'正常',3:'低'};
+function showLoading(s){document.getElementById('loading').style.display=s?'flex':'none'}
+function fmtDT(d){const dt=new Date(d);return String(dt.getMonth()+1).padStart(2,'0')+'/'+String(dt.getDate()).padStart(2,'0')+' '+String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0')}
+function daysBetween(a,b){return Math.ceil((new Date(b)-new Date(a))/86400000)}
+function isWeekend(s){const d=new Date(s).getDay();return d===0||d===6}
+function isToday(s){const d=new Date(s),n=new Date();return d.getDate()===n.getDate()&&d.getMonth()===n.getMonth()&&d.getFullYear()===n.getFullYear()}
+function colorFor(p){return COLORS[p]||['#722ed1','#9254de']}
+async function fetchJSON(url,opt){const r=await fetch(url,opt);if(!r.ok){const e=await r.json().catch(()=>({detail:r.statusText}));throw new Error(e.detail||'HTTP '+r.status)}return r.json()}
+async function loadWorkCenters(){try{const d=await fetchJSON('/api/work-centers');workCenters=d.work_centers||[]}catch(e){workCenters=[]}}
+async function loadPlanList(){try{const d=await fetchJSON('/api/plans?limit=50');allPlans=d.items||[];const sel=document.getElementById('planSelect');sel.innerHTML='<option value="">-- 选择计划 --</option>';allPlans.forEach(p=>{const o=document.createElement('option');o.value=p.plan_id;o.text=p.plan_id+' ['+p.status+']';sel.appendChild(o)})}catch(e){console.warn(e)}}
+async function loadLatestPlan(){showLoading(true);try{await loadWorkCenters();await loadPlanList();currentPlan=await fetchJSON('/api/plans/latest');renderPlan(currentPlan);const sel=document.getElementById('planSelect');if(currentPlan&&currentPlan.plan)sel.value=currentPlan.plan.plan_id}catch(e){if(e.message.includes('无排产计划')){document.getElementById('ganttContainer').innerHTML='<div class="empty-state"><div class="icon">📋</div><div class="msg">暂无排产计划</div><div class="hint">点击「生成新计划」加载排产数据</div></div>'}else{alert('加载失败: '+e.message)}}finally{showLoading(false)}}
+async function loadSelectedPlan(){const sel=document.getElementById('planSelect');const pid=sel.value;if(!pid)return;showLoading(true);try{currentPlan=await fetchJSON('/api/plans/'+pid);renderPlan(currentPlan)}catch(e){alert('加载失败: '+e.message)}finally{showLoading(false)}}
+async function runScheduling(){showLoading(true);try{const r=await fetchJSON('/api/scheduling/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_input:'安排下周生产计划',sync:true})});if(r.success){await loadLatestPlan()}else{alert('排产失败: '+(r.output||'未知错误'))}}catch(e){alert('排产请求失败: '+e.message)}finally{showLoading(false)}}
+async function confirmPlan(){if(!currentPlan||!currentPlan.plan)return;const pid=currentPlan.plan.plan_id;if(!confirm('确认计划 '+pid+'？确认后任务转为已排程。'))return;showLoading(true);try{await fetchJSON('/api/plans/'+pid+'/confirm',{method:'POST'});alert('计划已确认');await loadLatestPlan()}catch(e){alert('确认失败: '+e.message)}finally{showLoading(false)}}
+function zoomIn(){dayWidth=Math.min(dayWidth*1.3,300);if(currentPlan)renderPlan(currentPlan)}
+function zoomOut(){dayWidth=Math.max(dayWidth/1.3,40);if(currentPlan)renderPlan(currentPlan)}
+function zoomReset(){dayWidth=120;if(currentPlan)renderPlan(currentPlan)}
+function renderPlan(pd){const plan=pd.plan,tasks=pd.logical_tasks||[];
+    document.getElementById('cardPlanId').textContent=plan.plan_id;
+    document.getElementById('cardPlanStatus').textContent=plan.status==='draft'?'草稿':plan.status;
+    document.getElementById('btnDelete').style.display=(plan.status==='draft')?'':'none';
+    document.getElementById('cardTasks').textContent=tasks.length;
+    document.getElementById('cardSegments').textContent=pd.total_segments+' 段';
+    let th=0;tasks.forEach(t=>th+=t.total_hours);
+    document.getElementById('cardHours').textContent=th.toFixed(1)+'h';
+    document.getElementById('cardSolver').textContent='OPTIMAL';
+    let cb='';if(plan.status==='draft')cb=' <button class="btn btn-danger btn-sm" onclick="confirmPlan()" style="margin-left:8px;">确认下发</button>';
+    document.getElementById('planInfo').innerHTML=plan.plan_id+' | '+plan.status+' | '+tasks.length+'任务'+cb;
+    const segs=[];tasks.forEach(t=>t.segments.forEach(s=>segs.push({...s,parent_task_id:t.task_id})));
+    if(!segs.length){document.getElementById('ganttContainer').innerHTML='<div class="empty-state"><div class="icon">📋</div><div class="msg">计划无任务段</div></div>';return}
+    let mn=new Date(segs[0].start_time),mx=new Date(segs[0].end_time);
+    segs.forEach(s=>{const a=new Date(s.start_time),b=new Date(s.end_time);if(a<mn)mn=a;if(b>mx)mx=b});
+    mn.setHours(0,0,0,0);mn.setDate(mn.getDate()-1);mx.setHours(23,59,59,999);mx.setDate(mx.getDate()+1);
+    const td=daysBetween(mn,mx)+1,tw=td*dayWidth;
+    const cids=[...new Set(segs.map(s=>s.center_id))];
+    let centers=cids.map(cid=>{const wc=workCenters.find(w=>w.center_id===cid);return{center_id:cid,center_name:wc?wc.center_name:cid,status:wc?wc.status:'active'}});
+    let h='';
+    h+='<div class="gantt-header"><div class="corner">工作中心</div><div class="timeline-wrap"><div class="timeline-header" style="width:'+tw+'px;">';
+    for(let i=0;i<td;i++){const d=new Date(mn);d.setDate(d.getDate()+i);const ds=d.toISOString().slice(0,10);const we=isWeekend(ds)?' weekend':'',to=isToday(ds)?' today':'';h+='<div class="day-cell'+we+to+'" style="width:'+dayWidth+'px;">'+(d.getMonth()+1)+'/'+d.getDate()+' 周'+['日','一','二','三','四','五','六'][d.getDay()]+'</div>'}
+    h+='</div></div></div><div class="gantt-body"><div class="gantt-sidebar">';
+    centers.forEach(c=>{const dc=c.status==='maintenance'?'#ff4d4f':'#52c41a';h+='<div class="center-row"><span class="dot" style="background:'+dc+';"></span>'+c.center_name+'</div>'});
+    h+='</div><div class="gantt-chart" id="ganttChart"><div class="task-rows" style="width:'+tw+'px;">';
+    centers.forEach(c=>{
+        h+='<div class="task-row">';
+        for(let i=0;i<td;i++){const d=new Date(mn);d.setDate(d.getDate()+i);const ds=d.toISOString().slice(0,10);if(isWeekend(ds))h+='<div style="position:absolute;top:0;bottom:0;left:'+(i*dayWidth)+'px;width:'+dayWidth+'px;background:#fafafa;"></div>';h+='<div style="position:absolute;top:0;bottom:0;left:'+((i+1)*dayWidth)+'px;width:1px;background:#f5f5f5;"></div>'}
+        const now=new Date();if(now>=mn&&now<=mx){const no=(now-mn)/86400000*dayWidth;h+='<div class="now-line" style="left:'+no+'px;"></div>'}
+        const cs=segs.filter(s=>s.center_id===c.center_id);
+        cs.forEach(s=>{const st=new Date(s.start_time),en=new Date(s.end_time);const lo=(st-mn)/86400000*dayWidth,w=(en-st)/86400000*dayWidth;const[c1,c2]=colorFor(s.product_id),pc=COLORS[s.product_id]?'prod-'+s.product_id:'prod-default';const sb=s.setup_time_minutes>0?'<span class="setup-badge">换型'+s.setup_time_minutes+'min</span>':'',lb=s.product_id+' x'+s.quantity;const sj=JSON.stringify(s).replace(/'/g,"\\'").replace(/"/g,'&quot;');const locked=(s.status!=='planned'&&s.status!=='scheduled');const lc=locked?' locked':'';h+='<div class="task-bar '+pc+lc+'" data-seg=\''+sj.replace(/'/g,'')+'\' data-min="'+mn.getTime()+'" data-dw="'+dayWidth+'" style="left:'+lo+'px;width:'+Math.max(w,2)+'px;background:linear-gradient(135deg,'+c1+','+c2+');" onmouseenter="showTooltip(event,'+sj+')" onmouseleave="hideTooltip()" onmousemove="moveTooltip(event)"><span class="drag-hint"></span><div class="resize-handle" style="left:0;"></div><span class="label">'+lb+'</span>'+sb+'<div class="resize-handle" style="right:0;"></div></div>'});
+        cs.forEach(s=>{if(s.due_date){const du=new Date(s.due_date);du.setHours(12,0,0,0);if(du>=mn&&du<=mx){const dof=(du-mn)/86400000*dayWidth;h+='<div class="due-marker" style="left:'+dof+'px;" title="交期:'+s.due_date+'"></div>'}}});
+        h+='</div>'
+    });
+    h+='</div></div></div>';
+    document.getElementById('ganttContainer').innerHTML=h;
+    // Drag-to-scroll
+    const chart=document.getElementById('ganttChart');
+    let isDown=false,startX,scrollLeft;
+    chart.addEventListener('mousedown',e=>{if(e.target.classList.contains('task-bar'))return;isDown=true;chart.classList.add('dragging');startX=e.pageX-chart.offsetLeft;scrollLeft=chart.scrollLeft});
+    chart.addEventListener('mouseleave',()=>{isDown=false;chart.classList.remove('dragging')});
+    chart.addEventListener('mouseup',()=>{isDown=false;chart.classList.remove('dragging')});
+    chart.addEventListener('mousemove',e=>{if(!isDown)return;e.preventDefault();const x=e.pageX-chart.offsetLeft;chart.scrollLeft=scrollLeft-(x-startX)*1.5});
+    // Mouse wheel zoom
+    chart.addEventListener('wheel',e=>{if(e.ctrlKey){e.preventDefault();if(e.deltaY<0)zoomIn();else zoomOut()}},{passive:false});
+}
+function showTooltip(e,seg){const tt=document.getElementById('tooltip');const rows=['<div class="tt-title">'+(seg.parent_task_id||seg.task_id)+' / '+seg.task_id+'</div>','<div class="tt-row"><span class="tt-label">产品</span>'+seg.product_id+'</div>','<div class="tt-row"><span class="tt-label">数量</span>'+seg.quantity+'</div>','<div class="tt-row"><span class="tt-label">中心</span>'+seg.center_id+'</div>','<div class="tt-row"><span class="tt-label">开始</span>'+fmtDT(seg.start_time)+'</div>','<div class="tt-row"><span class="tt-label">结束</span>'+fmtDT(seg.end_time)+'</div>','<div class="tt-row"><span class="tt-label">工时</span>'+seg.duration_hours.toFixed(2)+'h</div>'];if(seg.setup_time_minutes>0)rows.push('<div class="tt-row"><span class="tt-label">换型</span>'+seg.setup_time_minutes+'min</div>');rows.push('<div class="tt-row"><span class="tt-label">交期</span>'+(seg.due_date||'无')+'</div>');rows.push('<div class="tt-row"><span class="tt-label">优先级</span>'+(PRI[seg.priority]||seg.priority)+'</div>');rows.push('<div class="tt-row"><span class="tt-label">状态</span>'+seg.status+'</div>');tt.innerHTML=rows.join('');tt.style.display='block';moveTooltip(e)}
+function moveTooltip(e){const tt=document.getElementById('tooltip');let x=e.clientX+12,y=e.clientY+12;if(x+380>window.innerWidth)x=e.clientX-380;if(y+300>window.innerHeight)y=e.clientY-300;tt.style.left=x+'px';tt.style.top=y+'px'}
+function hideTooltip(){document.getElementById('tooltip').style.display='none'}
+window.addEventListener('DOMContentLoaded',()=>{loadLatestPlan()});
+
+// ===== Task Drag & Resize =====
+let dragMode=null,dragBar=null,dragStartX=0,dragOrigLeft=0,dragOrigWidth=0,dragSegData=null,dragMinTime=0,dragDayWidth=120;
+
+function initDrag(e){
+    const bar=e.target.closest('.task-bar');
+    if(!bar)return false;
+    if(bar.classList.contains('locked')){alert('该任务已确认/执行中，不可拖拽调整');return false}
+    e.preventDefault();e.stopPropagation();
+    dragMode=e.target.classList.contains('resize-handle')?'resize':'move';
+    dragBar=bar;dragStartX=e.clientX;
+    dragOrigLeft=parseFloat(bar.style.left);
+    dragOrigWidth=parseFloat(bar.style.width);
+    dragSegData=JSON.parse(bar.getAttribute('data-seg'));
+    dragMinTime=parseInt(bar.getAttribute('data-min'));
+    dragDayWidth=parseInt(bar.getAttribute('data-dw'));
+    bar.classList.add('dragging');
+    document.addEventListener('mousemove',onDragMove);
+    document.addEventListener('mouseup',onDragEnd);
+    return true;
+}
+
+function onDragMove(e){
+    if(!dragBar)return;
+    const dx=e.clientX-dragStartX;
+    if(dragMode==='move'){
+        dragBar.style.left=Math.max(0,dragOrigLeft+dx)+'px';
+    }else{
+        dragBar.style.width=Math.max(20,dragOrigWidth+dx)+'px';
+    }
+    // Update hint
+    const hint=dragBar.querySelector('.drag-hint');
+    const left=parseFloat(dragBar.style.left),width=parseFloat(dragBar.style.width);
+    const sMs=dragMinTime+(left/dragDayWidth)*86400000;
+    const eMs=dragMinTime+((left+width)/dragDayWidth)*86400000;
+    const sd=new Date(sMs),ed=new Date(eMs);
+    const f=d=>String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+    if(hint)hint.textContent=f(sd)+' - '+f(ed);
+}
+
+function onDragEnd(e){
+    document.removeEventListener('mousemove',onDragMove);
+    document.removeEventListener('mouseup',onDragEnd);
+    if(!dragBar)return;
+    dragBar.classList.remove('dragging');
+    const left=parseFloat(dragBar.style.left),width=parseFloat(dragBar.style.width);
+    const sMs=dragMinTime+(left/dragDayWidth)*86400000;
+    const eMs=dragMinTime+((left+width)/dragDayWidth)*86400000;
+    let sd=new Date(sMs),ed=new Date(eMs);
+    // Snap to 15 min
+    sd.setMinutes(Math.round(sd.getMinutes()/15)*15%60,0,0);
+    ed.setMinutes(Math.round(ed.getMinutes()/15)*15%60,0,0);
+    if(ed<=sd){dragBar.style.left=dragOrigLeft+'px';dragBar.style.width=dragOrigWidth+'px';dragBar=null;return}
+    const f=d=>String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+    if(!confirm('确认调整任务 '+dragSegData.task_id+'?\n'+f(sd)+' -> '+f(ed))){dragBar.style.left=dragOrigLeft+'px';dragBar.style.width=dragOrigWidth+'px';dragBar=null;return}
+    saveTaskTime(dragSegData.task_id,sd.toISOString().slice(0,19),ed.toISOString().slice(0,19));
+    dragBar=null;
+}
+
+async function saveTaskTime(tid,st,en){
+    try{
+        const r=await fetch('/api/tasks/'+tid,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({start_time:st,end_time:en})});
+        if(!r.ok){const e=await r.json().catch(()=>({detail:r.statusText}));alert('调整失败: '+e.detail);loadLatestPlan();return}
+        loadLatestPlan();
+    }catch(e){alert('请求失败: '+e.message)}
+}
+
+// 删除当前草稿计划
+async function deletePlan(){
+    if(!currentPlan||!currentPlan.plan)return;
+    const pid=currentPlan.plan.plan_id;
+    if(!confirm('确认删除草稿计划 '+pid+'？此操作不可撤销。'))return;
+    try{
+        const r=await fetch('/api/plans/'+pid,{method:'DELETE'});
+        if(!r.ok){const e=await r.json().catch(()=>({detail:r.statusText}));alert('删除失败: '+e.detail);return}
+        alert('已删除计划 '+pid);
+        currentPlan=null;
+        await loadLatestPlan();
+    }catch(e){alert('请求失败: '+e.message)}
+}
+
+// Event delegation for drag
+document.addEventListener('mousedown',e=>{if(e.target.closest('.task-bar'))initDrag(e)},{capture:true});
+
+</script>
+</body>
+</html>
